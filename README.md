@@ -28,3 +28,9 @@ int main(int argc, char *argv[]) {
     MR_Run(argc, argv, Map, 10, Reduce, 10, MR_DefaultHashPartition);
 }
 ```
+
+## Implementation Limitations
+
+- does not support running multiple MapReduce jobs in parallel.
+- does not support running workers on multiple machines.
+- does not support *O(1)* time key lookups.
