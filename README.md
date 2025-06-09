@@ -29,8 +29,15 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-## Implementation Limitations
+## Design Overview
+
+![](assets/design_overview.png)
+
+## Implementation Limitations/Assumptions
 
 - does not support running multiple MapReduce jobs in parallel.
 - does not support running workers on multiple machines.
-- does not support *O(1)* time key lookups.
+- does not support key lookup in *O(1)* time.
+- key-value pairs are stored in memory, so the total size of the data is limited by the memory of the machine.
+- does not support task scheduling policy.
+- number of partitions is equal to the number of reducers.
