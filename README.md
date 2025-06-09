@@ -4,6 +4,10 @@
 
 In 2004, engineers at Google introduced a new paradigm for large-scale parallel data processing known as MapReduce (see the original paper [here](https://static.googleusercontent.com/media/research.google.com/en//archive/mapreduce-osdi04.pdf), and make sure to look in the citations at the end). One key aspect of MapReduce is that it makes programming such tasks on large-scale clusters easy for developers; instead of worrying about how to manage parallelism, handle machine crashes, and many other complexities common within clusters of machines, the developer can instead just focus on writing little bits of code (described below) and the infrastructure handles the rest.
 
+## Design Overview
+
+![](assets/design_overview.png)
+
 ## Example Usage
 
 To run the MapReduce example, you can use the following command:
@@ -28,10 +32,6 @@ int main(int argc, char *argv[]) {
     MR_Run(argc, argv, Map, 10, Reduce, 10, MR_DefaultHashPartition);
 }
 ```
-
-## Design Overview
-
-![](assets/design_overview.png)
 
 ## Implementation Limitations/Assumptions
 
