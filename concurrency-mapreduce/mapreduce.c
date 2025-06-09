@@ -40,6 +40,27 @@ Mapper global_map;
 Reducer global_reduce;
 Partitioner global_partition;
 
+void print_KVs(KVs *kvs) {
+    if (kvs->key) {
+        printf("Key: %s, Values: ", kvs->key);
+        for (int i = 0; i < kvs->size; i++) {
+            printf("%s ", kvs->values[i]);
+        }
+        printf(", Index: %d, Size: %d, Capacity: %d", kvs->index, kvs->size, kvs->capacity);
+        printf("\n");
+    } else {
+        printf("Empty KVs\n");
+    }
+}
+
+void print_KVsStore(KVsStore *store) {
+    printf("KVsStore size: %d, capacity: %d\n", store->size, store->capacity);
+    for (int i = 0; i < store->size; i++) {
+        printf("KVs[%d]: ", i);
+        print_KVs(&store->kvs[i]);
+    }
+}
+
 void MapperTasks_Init(MapperTasks *tasks, char **file_names, int num_files) {
     tasks->file_names = file_names;
     tasks->num_files = num_files;
@@ -112,10 +133,8 @@ char *KVs_GetValue(KVs *kvs) {
     if (kvs->index >= kvs->size) {
         return NULL; // Index out of bounds
     }
-    sem_wait(&kvs->sem);
     int index = kvs->index;
     kvs->index++;
-    sem_post(&kvs->sem);
     return kvs->values[index];
 }
 
@@ -174,7 +193,6 @@ void KVsStore_Insert(KVsStore *store, char *key, char *value) {
 }
 
 KVs* KVsStore_Lookup(KVsStore *store, char *key) {
-    sem_wait(&store->sem);
     for (int i = 0; i < store->size; i++) {
         if (DEBUG) {
             printf("KVsStore_Lookup checking key: %s against %s\n", store->kvs[i].key, key);
@@ -184,7 +202,6 @@ KVs* KVsStore_Lookup(KVsStore *store, char *key) {
             return &store->kvs[i];
         }
     }
-    sem_post(&store->sem);
     return NULL; // Key not found
 }
 
@@ -230,7 +247,9 @@ void *reduce_worker(int *partition_number) {
             if (DEBUG) {
                 printf("Reducer processing key: %s in partition: %d\n", kvs->key, *partition_number);
             }
-            global_reduce(kvs->key, Reducer_Getter, *partition_number);
+            if (kvs->key) {
+                global_reduce(kvs->key, Reducer_Getter, *partition_number);
+            }
         }
     }
     return NULL;
@@ -287,6 +306,14 @@ void MR_Run(int argc, char *argv[], Mapper map, int num_mappers, Reducer reduce,
         KVsStore *store = &partition_stores[i];
         // Sort the keys in the store
         qsort(store->kvs, store->size, sizeof(KVs), compareKVs);
+    }
+
+    // Print partition stores for debugging
+    if (DEBUG) {
+        for (int i = 0; i < global_num_partitions; i++) {
+            printf("Partition %d:\n", i);
+            print_KVsStore(&partition_stores[i]);
+        }
     }
 
     // Run reducers
