@@ -194,6 +194,7 @@ void KVsStore_Insert(KVsStore *store, char *key, char *value) {
     }
 }
 
+// Function to lookup a key in the KVsStore, Lock is not needed since only one reducer thread accesses a partition store at a time
 KVs* KVsStore_Lookup(KVsStore *store, char *key) {
     for (int i = 0; i < store->size; i++) {
         if (DEBUG) {
