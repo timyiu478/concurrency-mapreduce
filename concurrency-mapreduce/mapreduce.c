@@ -7,7 +7,7 @@
 #include "mapreduce.h"
 
 #define DYNAMIC_ARRAY_CAPACITY 64
-#define DEBUG 1
+#define DEBUG 0
 
 typedef struct KVs {
     char *key;
@@ -23,6 +23,7 @@ typedef struct KVsStore {
     int size;
     int capacity;
     int index; // used to track the current KVs being processed
+    int partition_number; // used for reducer to identify the partition this store belongs to
     sem_t sem;
 } KVsStore;
 
@@ -138,10 +139,11 @@ char *KVs_GetValue(KVs *kvs) {
     return kvs->values[index];
 }
 
-void KVsStore_Init(KVsStore *store) {
+void KVsStore_Init(KVsStore *store, int partition_number) {
     store->kvs = malloc(DYNAMIC_ARRAY_CAPACITY * sizeof(KVs));
     store->size = 0;
     store->index = 0;
+    store->partition_number = partition_number;
     store->capacity = DYNAMIC_ARRAY_CAPACITY;
     for (int i = 0; i < DYNAMIC_ARRAY_CAPACITY; i++) {
         KVs_Init(&store->kvs[i]);
@@ -225,9 +227,6 @@ char *Reducer_Getter(char *key, int partition_number) {
 void MR_Emit(char *key, char *value) {
     int partition_number = global_partition(key, global_num_partitions);
     KVsStore_Insert(&partition_stores[partition_number], key, value);
-    if (DEBUG) {
-        printf("Emitted key: %s, value: %s to partition: %d\n", key, value, partition_number);
-    }
 }
 
 unsigned long MR_DefaultHashPartition(char *key, int num_partitions) {
@@ -238,17 +237,19 @@ unsigned long MR_DefaultHashPartition(char *key, int num_partitions) {
     return hash % num_partitions;
 }
 
-void *reduce_worker(int *partition_number) {
-    KVsStore *store = &partition_stores[*partition_number];
+void *reduce_worker(KVsStore *store) {
+    if (DEBUG) {
+        printf("KVsStore partition_number: %d, size: %d, capacity: %d\n", store->partition_number, store->size, store->capacity);
+    }
     for (int i = 0; i < store->size; i++) {
         KVs *kvs = &store->kvs[i];
         if (kvs->size > 0) {
             // Call the reducer function for each key
             if (DEBUG) {
-                printf("Reducer processing key: %s in partition: %d\n", kvs->key, *partition_number);
+                printf("Reducer processing key: %s in partition: %d\n", kvs->key, store->partition_number);
             }
             if (kvs->key) {
-                global_reduce(kvs->key, Reducer_Getter, *partition_number);
+                global_reduce(kvs->key, Reducer_Getter, store->partition_number);
             }
         }
     }
@@ -275,7 +276,7 @@ void MR_Run(int argc, char *argv[], Mapper map, int num_mappers, Reducer reduce,
     // Initialize partition stores
     partition_stores = malloc(global_num_partitions * sizeof(KVsStore));
     for (int i = 0; i < global_num_partitions; i++) {
-        KVsStore_Init(&partition_stores[i]);
+        KVsStore_Init(&partition_stores[i], i);
     }
 
     // Initialize mapper tasks
@@ -319,7 +320,7 @@ void MR_Run(int argc, char *argv[], Mapper map, int num_mappers, Reducer reduce,
     // Run reducers
     pthread_t *reducer_threads = malloc(num_mappers * sizeof(pthread_t));
     for (int i = 0; i < num_reducers; i++) {
-        pthread_create(&reducer_threads[i], NULL, (void *)reduce_worker, &i);
+        pthread_create(&reducer_threads[i], NULL, (void *)reduce_worker, &partition_stores[i]);
     }
 
     // Wait for all reducers to finish
